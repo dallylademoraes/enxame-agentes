@@ -1,0 +1,5 @@
+# Workers que o coordenador vai usar: host:porta provedor (falso, ollama ou groq)
+# Linhas começando com # são ignoradas.
+localhost:5001 ollama
+localhost:5002 groq
+localhost:5003 falso
