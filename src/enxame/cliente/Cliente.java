@@ -6,7 +6,6 @@ import java.util.Scanner;
 import enxame.comum.Mensagem;
 
 // Pergunta em loop: lê do teclado, envia ao Coordenador e mostra a resposta e o tempo. "sair" encerra.
-// Uso: java -cp out enxame.cliente.Cliente <host> <porta>
 public class Cliente {
 
     public static void main(String[] args) throws IOException {

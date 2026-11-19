@@ -3,25 +3,26 @@ package enxame.worker.provedores;
 import java.net.URI;
 import java.net.http.*;
 
-// Ajudante dos provedores reais: manda um JSON por HTTP e tira um campo de texto da resposta.
+// Ajudante dos provedores Grok e Ollama
 class Http {
 
+    // manda o pedido e recebe a resposta inteira
     static String post(String url, String json, String chave) throws Exception {
         HttpRequest.Builder req = HttpRequest.newBuilder(URI.create(url))
-                .header("Content-Type", "application/json")
+                .header("Content-Type", "application/json") 
                 .POST(HttpRequest.BodyPublishers.ofString(json));
         if (chave != null) req.header("Authorization", "Bearer " + chave); // so o Groq usa chave
         HttpResponse<String> r = HttpClient.newHttpClient().send(req.build(), HttpResponse.BodyHandlers.ofString());
         if (r.statusCode() != 200) throw new Exception("HTTP " + r.statusCode() + ": " + r.body());
-        return r.body();
+        return r.body(); // volta texto JSON
     }
 
-    // coloca o texto entre aspas, escapando o que quebraria o JSON
+    // prepara a pergunta para o JSON: coloca entre aspas e escapa o que quebraria o JSON
     static String texto(String s) {
         return "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "") + "\"";
     }
 
-    // pega o valor de "campo":"..." no JSON (sem biblioteca, le ate a aspa que fecha)
+    // tira a resposta de dentro do JSON
     static String campo(String json, String campo) {
         int i = json.indexOf("\"" + campo + "\"");
         i = json.indexOf('"', json.indexOf(':', i) + 1) + 1; // pula ate a aspa que abre o valor

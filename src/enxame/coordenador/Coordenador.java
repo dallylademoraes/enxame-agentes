@@ -4,69 +4,63 @@ import java.io.*;
 import java.net.*;
 import java.nio.file.*;
 import java.util.*;
-import java.util.concurrent.*; // ExecutorService e Future (as threads)
+import java.util.concurrent.*;
 import enxame.comum.Mensagem;
 
-// Intermediário: recebe a pergunta do Cliente, repassa a um Worker e devolve a resposta.
-// Uso: java -cp out enxame.coordenador.Coordenador <porta> <arquivo-workers>
+// Intermediário: recebe a pergunta do Cliente, manda para todos os Workers e devolve a resposta mais votada
 public class Coordenador {
 
-    // "limpa" a resposta pra comparar: " Paris." e "paris" viram "paris"
+    // padroniza as RESPOSTAS para a votação: "Paris." e "Paris" viram "paris"
     static String normalizar(String texto) {
         return texto.trim().toLowerCase().replaceAll("[.!]+$", "");
     }
 
     public static void main(String[] args) throws IOException {
-        // le o worker.txt e salva um contato pra cada worker
-        List<StubWorker> workers = new ArrayList<>(); // agenda vazia
+        // PARTE 1: PREPARAR (roda uma vez só)
+
+        // monta a agenda de contatos: um StubWorker para cada linha do workers.txt
+        List<StubWorker> workers = new ArrayList<>();
         for (String linha : Files.readAllLines(Path.of(args[1]))) {
-            if (linha.isBlank() || linha.startsWith("#")) continue; // pula linha vazia e comentario
-            String[] p = linha.split("[: ]"); // p[0] é o host, p[1] é a porta, p[2] é o provedor
-            workers.add(new StubWorker(p[0], Integer.parseInt(p[1]), p[2])); // salva o contato
-            System.out.println("Worker: " + p[2] + " na porta " + p[1]);
+            if (linha.isBlank() || linha.startsWith("#")) continue; // pula linha vazia e comentário
+            String[] p = linha.split("[: ]"); // p[0] = host, p[1] = porta, p[2] = provedor
+            workers.add(new StubWorker(p[0], Integer.parseInt(p[1]), p[2]));
         }
 
-        // abre a porta pro cliente
-        ServerSocket servidor = new ServerSocket(Integer.parseInt(args[0]));
+        ServerSocket servidor = new ServerSocket(Integer.parseInt(args[0])); // abre a porta para o cliente
+        ExecutorService ajudantes = Executors.newFixedThreadPool(workers.size()); // uma thread por worker
         System.out.println("Coordenador na porta " + args[0]);
-
-        // cria os ajudantes (threads), um pra cada worker. cria so uma vez e reaproveita
-        ExecutorService ajudantes = Executors.newFixedThreadPool(workers.size());
 
         while (true) {
             try (Socket conexao = servidor.accept(); // espera o cliente
                  BufferedReader entrada = new BufferedReader(new InputStreamReader(conexao.getInputStream()));
                  PrintWriter saida = new PrintWriter(conexao.getOutputStream(), true)) {
 
-                Mensagem pergunta = Mensagem.deLinha(entrada.readLine()); // recebe do cliente
+                Mensagem pergunta = Mensagem.deLinha(entrada.readLine()); // recebe a pergunta do cliente
 
-                long inicio = System.nanoTime(); // marca o inicio pra medir o tempo
+                // PARTE 2: PERGUNTAR
 
-                // 1. espalha: cada ajudante leva a pergunta pra um worker, todos ao mesmo tempo
-                //    o submit NAO espera a resposta, so dispara e devolve um "recibo" (Future)
+                // espalha: cada ajudante liga para um worker, todos ao mesmo tempo. submit devolve um recibo (Future)
                 List<Future<Mensagem>> recibos = new ArrayList<>();
                 for (StubWorker w : workers) {
-                    recibos.add(ajudantes.submit(() -> w.perguntar(pergunta))); // () -> ... e a tarefa do ajudante
+                    recibos.add(ajudantes.submit(() -> w.perguntar(pergunta)));
                 }
 
-                // 2. junta: pega a resposta de cada recibo. o get() espera se ainda nao chegou
-                String respostas = ""; // comeca vazio (a bandeja)
-                Map<String, Integer> votos = new HashMap<>(); // placar: resposta -> quantos workers deram ela
+                // junta: get() busca a resposta de cada recibo (espera se ainda não chegou)
+                String respostas = "";                         // resposta de cada worker, para mostrar ao cliente
+                Map<String, Integer> votos = new HashMap<>();  // placar: resposta -> quantos votos
                 for (int i = 0; i < workers.size(); i++) {
-                    try { // se um worker falhar, so ele e pulado
-                        Mensagem r = recibos.get(i).get(); // resposta desse worker
-                        if (r.tipo.equals("ERRO")) throw new Exception(r.conteudo); // worker respondeu ERRO = falhou tambem
-                        respostas += "[" + workers.get(i).nome() + "] " + r.conteudo + "\n"; // deu certo: coloca na bandeja
-                        votos.merge(normalizar(r.conteudo), 1, Integer::sum); // conta o voto: soma 1 pra essa resposta
-                    } catch (Exception e) {
-                        // caiu, nao atendeu, demorou mais de 5 s ou respondeu ERRO: anota e segue pro proximo
-                        System.out.println("Worker " + workers.get(i).nome() + " falhou: " + e.getMessage());
-                        respostas += "[" + workers.get(i).nome() + "] falhou: " + e.getMessage() + "\n"; // avisa o cliente tambem (nao conta como voto)
+                    String nome = workers.get(i).nome();
+                    try {
+                        Mensagem r = recibos.get(i).get();
+                        if (r.tipo.equals("ERRO")) throw new Exception(r.conteudo);
+                        respostas += "[" + nome + "] " + r.conteudo + "\n";
+                        votos.merge(normalizar(r.conteudo), 1, Integer::sum); // +1 voto para essa resposta
+                    } catch (Exception e) { // worker caiu, demorou ou deu ERRO: anota e segue (não vota)
+                        respostas += "[" + nome + "] falhou: " + e.getMessage() + "\n";
                     }
                 }
-                // antes, um de cada vez (sequencial), dava ~3970 ms (a soma dos 3)
-                System.out.println("Paralelo: " + (System.nanoTime() - inicio) / 1_000_000 + " ms"); // mostra quanto demorou
-                System.out.println("Votos: " + votos); // ex.: {paris=2, lyon=1}
+
+                // PARTE 3: VOTAR
 
                 // acha a resposta mais votada
                 String vencedor = "";
@@ -75,15 +69,14 @@ public class Coordenador {
                     if (v.getValue() > maior) { maior = v.getValue(); vencedor = v.getKey(); }
                 }
 
-                // quorum = maioria do total de workers (3 -> 2). conta os configurados, nao so os que responderam
-                int quorum = workers.size() / 2 + 1;
-                if (maior >= quorum) { // maioria concordou: devolve so a vencedora com o placar
-                    saida.println(new Mensagem("RESPOSTA", pergunta.id, vencedor + " (" + maior + " de " + workers.size() + " votos)\n" + respostas).paraLinha()); // + o voto de cada um
-                } else { // ninguem chegou na maioria (ou quase todos cairam): avisa o cliente, ele nunca fica travado
+                int quorum = workers.size() / 2 + 1; // maioria: 3 workers -> 2 votos
+                if (maior >= quorum) {
+                    saida.println(new Mensagem("RESPOSTA", pergunta.id, vencedor + " (" + maior + " de " + workers.size() + " votos)\n" + respostas).paraLinha());
+                } else {
                     saida.println(new Mensagem("ERRO", pergunta.id, "sem quorum " + votos + "\n" + respostas).paraLinha());
                 }
             } catch (Exception e) {
-                System.out.println("Erro: " + e.getMessage()); // mostra o erro e continua funcionando
+                System.out.println("Erro: " + e.getMessage()); // mostra o erro e continua atendendo
             }
         }
     }

@@ -4,8 +4,8 @@ import java.io.*;
 import java.net.*; 
 import enxame.comum.Mensagem;
 
-// "Contato" de um worker: liga, pergunta, devolve a resposta ao Coordenador.
-public record StubWorker(String host, int porta, String nome) { // nome = provedor (ollama, groq, falso), so pra mostrar
+// liga pro worker e passa para o coordenador
+public record StubWorker(String host, int porta, String nome) { 
 
     public Mensagem perguntar(Mensagem pergunta) throws IOException {
         try (Socket s = new Socket()) { // telefone vazio, ainda nao ligou
@@ -17,8 +17,8 @@ public record StubWorker(String host, int porta, String nome) { // nome = proved
             PrintWriter saida = new PrintWriter(s.getOutputStream(), true);
             BufferedReader entrada = new BufferedReader(new InputStreamReader(s.getInputStream()));
 
-            saida.println(pergunta.paraLinha());          // fala
-            return Mensagem.deLinha(entrada.readLine());  // escuta e devolve
+            saida.println(pergunta.paraLinha());          // FALA: manda a pergunta pro worker
+            return Mensagem.deLinha(entrada.readLine());  // ESCUTA: espera a resposta e devolve
         }
     }
 }

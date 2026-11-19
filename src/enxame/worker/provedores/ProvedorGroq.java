@@ -1,9 +1,8 @@
 package enxame.worker.provedores;
 
-// LLM na nuvem: Groq. A chave vem da variavel de ambiente GROQ_API_KEY (nunca fica no codigo).
 public class ProvedorGroq implements ProvedorLLM {
 
-    static final String MODELO = "openai/gpt-oss-20b"; // modelos disponiveis: https://console.groq.com/docs/models
+    static final String MODELO = "openai/gpt-oss-20b"; 
 
     public String nome() { return "groq (" + MODELO + ")"; }
 

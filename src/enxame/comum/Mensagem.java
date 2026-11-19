@@ -1,9 +1,6 @@
 package enxame.comum;
 
-/**
- * Mensagem trocada entre cliente, coordenador e workers.
- * O formato é definido na Etapa 2 (ver docs/protocolo.md).
- */
+// Mensagem trocada entre cliente, coordenador e workers.
 public class Mensagem {
     public String tipo;
     public String id;
@@ -15,13 +12,13 @@ public class Mensagem {
         this.conteudo = conteudo;
     }
 
-    // serialização
+    // serialização = objeto->texto
     public String paraLinha(){
         String textoEscapado = conteudo.replace("\n", "\\n");
         return tipo + "|" + id + "|" + textoEscapado;
     }
 
-    // desserialização
+    // desserialização = texto->objeto
     public static Mensagem deLinha(String linha){
         String[] partes = linha.split("\\|", 3);
 

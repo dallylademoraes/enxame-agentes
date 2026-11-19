@@ -1,8 +1,6 @@
 package enxame.worker.provedores;
 
-/**
- * Abstração de um modelo de linguagem. O worker não sabe qual LLM está por trás.
- */
+//Interface dos provedores
 public interface ProvedorLLM {
 
     String nome();

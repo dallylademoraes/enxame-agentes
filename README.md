@@ -1,4 +1,4 @@
-# Trabalho 02 — Enxame de Agentes de IA Distribuído
+# Trabalho — Enxame de Agentes de IA Distribuído
 
 Um **coordenador** recebe uma pergunta de um **cliente**, distribui para vários **workers** ao mesmo tempo (cada um usando um LLM diferente), decide a resposta por **votação/quórum** e devolve o resultado. Se um worker cair, o sistema continua funcionando com os demais.
 
